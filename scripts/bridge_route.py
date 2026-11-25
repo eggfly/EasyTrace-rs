@@ -183,7 +183,16 @@ def main() -> None:
 
     open_snip = ""
     if args.pcb_uuid:
-        open_snip = f'await eda.dmt_EditorControl.openDocument("{args.pcb_uuid}"); await new Promise(r=>setTimeout(r,2000));\n'
+        open_snip = (
+            f'for(let __t=0;__t<6;__t++){{'
+            f'await eda.dmt_EditorControl.openDocument("{args.pcb_uuid}");'
+            f'await new Promise(r=>setTimeout(r,1000));'
+            f'const __ci=await eda.dmt_SelectControl.getCurrentDocumentInfo();'
+            f'if(__ci&&__ci.uuid==="{args.pcb_uuid}") break;'
+            f'}}\n'
+            f'const __ci2=await eda.dmt_SelectControl.getCurrentDocumentInfo();'
+            f'if(!__ci2||__ci2.uuid!=="{args.pcb_uuid}") throw new Error("wrong active doc: "+(__ci2&&__ci2.uuid));\n'
+        )
 
     if args.mode == "replace" and not args.dry_run:
         clear_js = open_snip + """
@@ -288,9 +297,21 @@ for (const L of {json.dumps(active_layers)}) {{
   const p = await eda.pcb_PrimitivePour.create({json.dumps(args.pour)}, L, eda.pcb_MathPolygon.createPolygon(src), "solid", false, name, 1, 10, false);
   res[name] = !!p;
 }}
-document.body.dispatchEvent(new KeyboardEvent("keydown",{{key:"B",code:"KeyB",shiftKey:true,bubbles:true}}));
+// Zero-hotkey programmatic copper pour rebuild via PCB iframe MSG_BUS_PCB
+const __ci = await eda.dmt_SelectControl.getCurrentDocumentInfo();
+const __pi = await eda.dmt_Project.getCurrentProjectInfo();
+const __fid = (__ci && __pi) ? ("frame_" + __ci.uuid + "@" + __pi.uuid) : null;
+const __fr = __fid ? document.getElementById(__fid) : Array.from(document.querySelectorAll("iframe[id^='frame_']")).find(x => x.contentWindow && x.contentWindow.MSG_BUS_PCB);
+if (__fr && __fr.contentWindow && __fr.contentWindow.MSG_BUS_PCB && __fr.contentWindow.MSG_BUS_PCB.messageBus) {{
+  const __mb = __fr.contentWindow.MSG_BUS_PCB.messageBus;
+  try {{ await __mb.publish("pcb/pcbRebuildCopperRegion"); }} catch(e) {{}}
+  try {{ await __mb.publish("rebuildCopper"); }} catch(e) {{}}
+}}
 await new Promise(r=>setTimeout(r,8000));
 await eda.pcb_Document.save();
+let __poured = 0;
+try {{ const __pa = await eda.pcb_PrimitivePoured.getAll(); __poured = __pa ? __pa.length : 0; }} catch(e) {{}}
+res.poured = __poured;
 return JSON.stringify(res);
 """
         print(f"[bridge] Pouring {args.pour}:", client.run_async(pour_js, "__et_pour", 600.0))

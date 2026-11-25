@@ -461,7 +461,7 @@ impl Maps {
         let gs = b.gsid;
         let mut heap = BinaryHeap::new();
         let nx = self.g.nx as i32;
-        let hw_mul: f32 = if md.hard { 1.0 } else { 1.32 };
+        let hw_mul: f32 = if md.hard { 1.05 } else { 1.60 };
         let hf = |s: &Maps, n: u32| if md.astar { s.heur(n, bbs) * hw_mul } else { 0.0 };
         for &s in src {
             let k = s as usize;
@@ -480,7 +480,7 @@ impl Maps {
                 node: s,
             });
         }
-        let vc = self.rules.via_cost as f32;
+        let vc = (self.rules.via_cost as f32).max(22.0);
         let bend = self.rules.bend_cost as f32;
         let min_same_via = self.rules.via_hole_d + self.rules.hole_clr + 0.002;
         let mut local_exp: u64 = 0;
@@ -556,7 +556,8 @@ impl Maps {
                 if md.hard && occ > 0.0 {
                     continue;
                 }
-                let base_step = if is_diag { 1.4142 } else { 1.0 };
+                let outer_mul = if self.nl >= 4 && (l == 0 || l + 1 == self.nl) { 1.28 } else { 1.0 };
+                let base_step = (if is_diag { 1.4142 } else { 1.0 }) * outer_mul;
                 let wall_disc = if self.wall[ec][l][ni] > 0 { 0.965 } else { 1.0 };
                 let dir_pen = if self.nl >= 4 && l > 0 && l + 1 < self.nl {
                     if (l % 2 == 1 && *dj != 0) || (l % 2 == 0 && *di != 0) {
@@ -612,7 +613,7 @@ impl Maps {
                         let vcost_base = if same_reuse {
                             vc * 0.25
                         } else {
-                            vc + vc * 0.55 * (vh_term + md.pres * occ)
+                            vc + vc * 0.85 * (vh_term + md.pres * occ)
                         };
                         for l2 in 0..self.nl {
                             if l2 == l {
@@ -1810,7 +1811,7 @@ pub fn route_input(mut inp: Input, cfg: &RouteConfig) -> RouteOutput {
                 break;
             }
 
-            pres = (pres * pmul).min(28.0);
+            pres = (pres * pmul).min(400.0);
             let md = Mode {
                 pres,
                 hard: false,
