@@ -831,6 +831,57 @@ fn maybe_snap_pad_stub(m: &Maps, n: &NetCtx, br: &mut Branch) {
     }
 }
 
+/// True geometric connected components over `n.isl_cells` (0..k_tot) and `nr.branches` (k_tot..) by shared grid cells.
+/// Prevents stale cached `(isl_a, isl_b)` labels from hiding disconnected islands after ripping intermediate Steiner branches.
+fn true_uf(n: &NetCtx, nr: &NetRoute) -> Vec<usize> {
+    let k_tot = n.isl_cells.len();
+    let total = k_tot + nr.branches.len();
+    let mut par: Vec<usize> = (0..total).collect();
+    fn uf_find(par: &mut [usize], x: usize) -> usize {
+        let mut r = x;
+        while par[r] != r {
+            r = par[r];
+        }
+        let mut c = x;
+        while par[c] != r {
+            let p = par[c];
+            par[c] = r;
+            c = p;
+        }
+        r
+    }
+    let mut owner: std::collections::HashMap<u32, usize> = std::collections::HashMap::with_capacity(256);
+    for (ii, isl) in n.isl_cells.iter().enumerate() {
+        for &c in isl {
+            if let Some(&prev) = owner.get(&c) {
+                let (a, b) = (uf_find(&mut par, prev), uf_find(&mut par, ii));
+                if a != b {
+                    par[b] = a;
+                }
+            } else {
+                owner.insert(c, ii);
+            }
+        }
+    }
+    for (bi, br) in nr.branches.iter().enumerate() {
+        let bid = k_tot + bi;
+        for &(c, _, _) in &br.nodes {
+            if let Some(&prev) = owner.get(&c) {
+                let (a, b) = (uf_find(&mut par, prev), uf_find(&mut par, bid));
+                if a != b {
+                    par[b] = a;
+                }
+            } else {
+                owner.insert(c, bid);
+            }
+        }
+    }
+    for i in 0..total {
+        uf_find(&mut par, i);
+    }
+    par
+}
+
 fn route_missing(
     m: &Maps,
     b: &mut Buf,
@@ -854,26 +905,8 @@ fn route_missing(
     }
     b.own_vias = n.static_vias.clone();
 
-    let mut par: Vec<usize> = (0..k_tot).collect();
-    fn find(par: &mut [usize], x: usize) -> usize {
-        let mut r = x;
-        while par[r] != r {
-            r = par[r];
-        }
-        let mut c = x;
-        while par[c] != r {
-            let p = par[c];
-            par[c] = r;
-            c = p;
-        }
-        r
-    }
+    let par = true_uf(n, nr);
     for br in &nr.branches {
-        let ra = find(&mut par, br.isl_a);
-        let rb = find(&mut par, br.isl_b);
-        if ra != rb {
-            par[rb] = ra;
-        }
         for &(c, _, _) in &br.nodes {
             b.own[c as usize] = b.osid;
         }
@@ -885,27 +918,29 @@ fn route_missing(
         }
     }
     for (ii, isl) in n.isl_cells.iter().enumerate() {
-        let r = find(&mut par, ii);
+        let r = par[ii];
         for &c in isl {
             b.own[c as usize] = b.osid;
             b.sisl[c as usize] = r as u16;
         }
     }
-    for br in &nr.branches {
-        let r = find(&mut par, br.isl_a);
+    for (bi, br) in nr.branches.iter().enumerate() {
+        let r = par[k_tot + bi];
         for &(c, _, _) in &br.nodes {
             b.sisl[c as usize] = r as u16;
         }
     }
 
+    let mut isl_roots: HashSet<usize> = HashSet::new();
     let mut comp_map: BTreeMap<usize, Vec<u32>> = BTreeMap::new();
     for ii in 0..k_tot {
-        let r = find(&mut par, ii);
+        let r = par[ii];
+        isl_roots.insert(r);
         comp_map.entry(r).or_default().extend_from_slice(&n.isl_cells[ii]);
     }
-    for br in &nr.branches {
-        let r = find(&mut par, br.isl_a);
-        if !(n.plane && r == 0) {
+    for (bi, br) in nr.branches.iter().enumerate() {
+        let r = par[k_tot + bi];
+        if isl_roots.contains(&r) && !(n.plane && r == par[0]) {
             comp_map
                 .entry(r)
                 .or_default()
@@ -918,7 +953,7 @@ fn route_missing(
 
     let mut comps: Vec<(usize, Vec<u32>)> = comp_map.into_iter().collect();
     if n.plane {
-        let p_root = find(&mut par, 0);
+        let p_root = par[0];
         let p_pos = comps.iter().position(|x| x.0 == p_root).unwrap();
         let (_, plane_cells) = comps.remove(p_pos);
         let pb = bbox_cells(&plane_cells, nc, nx);
@@ -1126,24 +1161,12 @@ fn net_joined_count(n: &NetCtx, nr: &NetRoute) -> usize {
     if k_tot < 2 {
         return 0;
     }
-    let mut par: Vec<usize> = (0..k_tot).collect();
-    fn find(par: &mut [usize], x: usize) -> usize {
-        let mut r = x;
-        while par[r] != r {
-            r = par[r];
-        }
-        r
+    let par = true_uf(n, nr);
+    let mut roots: HashSet<usize> = HashSet::new();
+    for i in 0..k_tot {
+        roots.insert(par[i]);
     }
-    let mut joins = 0;
-    for br in &nr.branches {
-        let ra = find(&mut par, br.isl_a);
-        let rb = find(&mut par, br.isl_b);
-        if ra != rb {
-            par[rb] = ra;
-            joins += 1;
-        }
-    }
-    joins
+    k_tot.saturating_sub(roots.len())
 }
 
 fn total_joined_conns(nets: &[NetCtx], res: &[NetRoute]) -> usize {
