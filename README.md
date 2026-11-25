@@ -11,6 +11,9 @@
 [![Rust](https://img.shields.io/badge/Pure_Rust-2021_Edition-orange.svg)](Cargo.toml)
 [![JLCEDA Pro](https://img.shields.io/badge/JLCEDA_Pro-v2.3%2B_%2F_v4.1%2B-00b96b.svg)](extension/easytrace-jlceda-ext)
 
+<br/>
+<img src="docs/showcase_6layer_ring.png" width="760" alt="EasyTrace-rs 6-Layer Cutout-Aware Octilinear Routing Showcase (0 JLCEDA DRC Violations)" />
+
 </div>
 
 ---

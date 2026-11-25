@@ -11,6 +11,9 @@
 [![Rust](https://img.shields.io/badge/Pure_Rust-2021_Edition-orange.svg)](Cargo.toml)
 [![JLCEDA Pro](https://img.shields.io/badge/嘉立创EDA专业版-v2.3%2B_%2F_v4.1%2B-00b96b.svg)](extension/easytrace-jlceda-ext)
 
+<br/>
+<img src="docs/showcase_6layer_ring.png" width="760" alt="EasyTrace-rs 6层环形挖槽主板八向自动布线实测图（嘉立创原生 DRC 零违规）" />
+
 </div>
 
 ---
