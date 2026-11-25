@@ -54,7 +54,7 @@ When an AI agent has access to a JLCEDA Pro API Bridge (`--bridge-url`, e.g. `ht
      --project-uuid <PROJECT_UUID> \
      --reopen
    ```
-   Target sign-off: `nonConnCount == 0` and `sigUnconn == 0` (then pour `GND` via `--pour GND` so `gndUnconn == 0`).
+   Target sign-off: `nonConnCount == 0` and `sigUnconn == 0` (pass `--pour GND` to `bridge_route.py` — it automatically creates pours on all active copper layers and triggers JLCEDA Pro's internal `MSG_BUS_PCB.messageBus.publish("pcb/pcbRebuildCopperRegion")` + `publish("rebuildCopper")` RPC with **zero manual `Shift+B` hotkey**, then verifies `poured` count so `gndUnconn == 0`).
 
 ## 4. Machine-Readable `stdout` Progress Protocol
 
