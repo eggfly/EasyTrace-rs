@@ -1,0 +1,28 @@
+[package]
+name = "easytrace-rs"
+version = "0.2.0"
+edition = "2021"
+authors = ["eggfly"]
+license = "MIT"
+description = "High-speed PathFinder negotiated-congestion PCB autorouter in pure Rust with native JLCEDA Pro (EasyEDA Pro) and Specctra DSN/SES support."
+repository = "https://github.com/eggfly/EasyTrace-rs"
+homepage = "https://github.com/eggfly/EasyTrace-rs"
+keywords = ["pcb", "autorouter", "eda", "jlceda", "easyeda"]
+categories = ["command-line-utilities", "science", "simulation"]
+
+[lib]
+name = "easytrace_rs"
+path = "src/lib.rs"
+
+[[bin]]
+name = "easytrace"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
