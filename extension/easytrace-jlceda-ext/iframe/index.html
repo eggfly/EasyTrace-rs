@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EasyTrace-rs Autorouter</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	background: #1c1d21;
+	color: #dcdfe4;
+	padding: 16px;
+	font-size: 13px;
+	user-select: none;
+}
+.header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 12px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid #2e3138;
+}
+.title { font-size: 15px; font-weight: 700; color: #fff; }
+.subtitle { font-size: 11px; color: #8c92a4; margin-top: 2px; }
+.badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 11px;
+	padding: 4px 8px;
+	border-radius: 999px;
+	background: #282b33;
+	border: 1px solid #383c47;
+	cursor: pointer;
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #888; }
+.dot.ok { background: #3fb950; box-shadow: 0 0 6px #3fb950; }
+.dot.err { background: #f85149; box-shadow: 0 0 6px #f85149; }
+
+.form-group { margin-bottom: 10px; }
+.form-group label {
+	display: block;
+	font-size: 11px;
+	font-weight: 600;
+	color: #9da5b4;
+	margin-bottom: 4px;
+}
+.form-row { display: flex; gap: 8px; }
+.form-row .form-group { flex: 1; }
+input[type="text"], input[type="number"], select {
+	width: 100%;
+	padding: 6px 8px;
+	background: #262930;
+	border: 1px solid #3a3f4b;
+	border-radius: 5px;
+	color: #eef1f6;
+	font-size: 12px;
+	outline: none;
+}
+input:focus, select:focus { border-color: #4f8cff; }
+.check-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 8px 0 12px;
+	font-size: 12px;
+	color: #c6cbd4;
+}
+.cmd-hint {
+	background: #141518;
+	border: 1px solid #2e323b;
+	border-radius: 5px;
+	padding: 7px 10px;
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 11px;
+	color: #79c0ff;
+	margin-bottom: 12px;
+}
+.log-box {
+	background: #121316;
+	border: 1px solid #2c3038;
+	border-radius: 6px;
+	padding: 10px;
+	height: 118px;
+	overflow-y: auto;
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 11px;
+	line-height: 1.45;
+	color: #b7beca;
+	margin-bottom: 12px;
+	white-space: pre-wrap;
+}
+.btn-row { display: flex; gap: 8px; }
+button {
+	padding: 8px 12px;
+	border: none;
+	border-radius: 5px;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: opacity 0.15s;
+}
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { flex: 2; background: #2f81f7; color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #388bfd; }
+.btn-warn { flex: 1; background: #373b44; color: #f0883e; border: 1px solid #4a4f5c; }
+.btn-close { background: #2b2e36; color: #b1b8c4; }
+</style>
+</head>
+<body>
+<div class="header">
+	<div>
+		<div class="title">EasyTrace-rs Autorouter</div>
+		<div class="subtitle">Native Cutout/NPTH-Aware PathFinder Engine</div>
+	</div>
+	<div class="badge" id="healthBadge" title="Click to re-check local server">
+		<span class="dot" id="healthDot"></span>
+		<span id="healthText">Checking...</span>
+	</div>
+</div>
+
+<div class="cmd-hint" id="serverHint">Terminal: <b>easytrace serve</b> &nbsp;(http://127.0.0.1:3789)</div>
+
+<div class="form-row">
+	<div class="form-group" style="flex: 1.4;">
+		<label>Local Server URL</label>
+		<input type="text" id="serverUrl" value="http://127.0.0.1:3789">
+	</div>
+	<div class="form-group">
+		<label>Routing Mode</label>
+		<select id="routeMode">
+			<option value="incremental">Keep Existing Routes</option>
+			<option value="replace">Rip-Up Unlocked &amp; Route All</option>
+		</select>
+	</div>
+</div>
+
+<div class="form-row">
+	<div class="form-group">
+		<label>Skip Nets (Pour / Plane)</label>
+		<input type="text" id="skipNets" value="GND">
+	</div>
+	<div class="form-group">
+		<label>Power Nets (0.20mm w/ B20 Neck)</label>
+		<input type="text" id="powerNets" value="VBAT,VDD_3V3,VBUS,VCC,5V,3V3">
+	</div>
+</div>
+
+<div class="form-row">
+	<div class="form-group">
+		<label>Max Rip-Up Iters</label>
+		<input type="number" id="iters" value="45" min="1" max="200">
+	</div>
+	<div class="form-group">
+		<label>Grid Step (mm)</label>
+		<input type="number" id="gridH" value="0.05" step="0.01" min="0.025" max="0.2">
+	</div>
+</div>
+
+<label class="check-row">
+	<input type="checkbox" id="enableSqueeze">
+	<span>Allow 0.095mm pinch squeeze (only if PCB rule minWidth &le; 0.095mm)</span>
+</label>
+
+<div class="log-box" id="logBox">Ready. Start `easytrace serve` in terminal, then click Auto Route PCB.</div>
+
+<div class="btn-row">
+	<button class="btn-primary" id="btnRoute">Auto Route Current PCB</button>
+	<button class="btn-warn" id="btnClear" title="Delete unlocked copper tracks and vias">Clear Unlocked</button>
+	<button class="btn-close" id="btnClose">Close</button>
+</div>
+
+<script>
+(function () {
+	var MM_TO_MIL = 1.0 / 0.0254;
+	var COPPER_LAYERS = new Set([1, 2]);
+	for (var lid = 15; lid <= 46; lid++) COPPER_LAYERS.add(lid);
+
+	function $(id) { return document.getElementById(id); }
+	function log(msg) {
+		var box = $("logBox");
+		box.textContent += "\n" + msg;
+		box.scrollTop = box.scrollHeight;
+	}
+	function toast(msg, kind) {
+		try {
+			var t = typeof ESYS_ToastMessageType !== "undefined"
+				? ESYS_ToastMessageType[kind || "INFO"]
+				: (kind === "ERROR" ? "error" : "info");
+			eda.sys_ToastMessage.showMessage(msg, t);
+		} catch (e) {}
+	}
+
+	async function checkHealth() {
+		var base = $("serverUrl").value.replace(/\/+$/, "");
+		try {
+			var r = await fetch(base + "/health", { method: "GET" });
+			var j = await r.json();
+			if (j && j.status === "ok") {
+				$("healthDot").className = "dot ok";
+				$("healthText").textContent = "Online v" + (j.version || "0.2");
+				return true;
+			}
+		} catch (e) {}
+		$("healthDot").className = "dot err";
+		$("healthText").textContent = "Offline";
+		return false;
+	}
+
+	async function clearUnlockedCopper() {
+		var delLines = 0, delVias = 0;
+		var allLines = (await eda.pcb_PrimitiveLine.getAll()) || [];
+		var lineIds = [];
+		for (var i = 0; i < allLines.length; i++) {
+			var ln = allLines[i];
+			var layer = ln.getState_Layer && ln.getState_Layer();
+			var locked = ln.getState_PrimitiveLock && ln.getState_PrimitiveLock();
+			if (COPPER_LAYERS.has(layer) && !locked) {
+				lineIds.push(ln.getState_PrimitiveId());
+			}
+		}
+		if (lineIds.length > 0) {
+			await eda.pcb_PrimitiveLine.delete(lineIds);
+			delLines = lineIds.length;
+		}
+		var allVias = (await eda.pcb_PrimitiveVia.getAll()) || [];
+		var viaIds = [];
+		for (var j = 0; j < allVias.length; j++) {
+			var v = allVias[j];
+			var vLocked = v.getState_PrimitiveLock && v.getState_PrimitiveLock();
+			if (!vLocked) {
+				viaIds.push(v.getState_PrimitiveId());
+			}
+		}
+		if (viaIds.length > 0) {
+			await eda.pcb_PrimitiveVia.delete(viaIds);
+			delVias = viaIds.length;
+		}
+		return { delLines: delLines, delVias: delVias };
+	}
+
+	async function runAutoRoute() {
+		$("btnRoute").disabled = true;
+		$("btnClear").disabled = true;
+		try {
+			var online = await checkHealth();
+			if (!online) {
+				log("[!] Server offline. Run `easytrace serve` in a terminal first.");
+				toast("Start `easytrace serve` in terminal first!", "ERROR");
+				return;
+			}
+
+			var mode = $("routeMode").value;
+			if (mode === "replace") {
+				log("Clearing unlocked copper tracks & vias...");
+				var cRes = await clearUnlockedCopper();
+				log("Removed " + cRes.delLines + " unlocked segments and " + cRes.delVias + " vias.");
+			}
+
+			log("Exporting native PCB AutoRouteJson (cutouts + NPTH slots + rules)...");
+			var jrFile = await eda.pcb_ManufactureData.getAutoRouteJsonFile();
+			if (!jrFile) {
+				throw new Error("getAutoRouteJsonFile() returned null. Ensure a PCB tab is active.");
+			}
+			var jrTxt = typeof jrFile === "string" ? jrFile : await jrFile.text();
+			var autoRouteObj = JSON.parse(jrTxt);
+
+			var skipList = $("skipNets").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+			var powerList = $("powerNets").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+			var payload = {
+				autoRoute: autoRouteObj,
+				options: {
+					iters: parseInt($("iters").value, 10) || 45,
+					h: parseFloat($("gridH").value) || 0.05,
+					skip: skipList,
+					power: powerList,
+					ignoreExisting: mode === "replace",
+					minWidth: $("enableSqueeze").checked ? 0.095 : null
+				}
+			};
+
+			var base = $("serverUrl").value.replace(/\/+$/, "");
+			log("Routing on EasyTrace-rs (" + base + "/route-jlceda)...");
+			var resp = await fetch(base + "/route-jlceda", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload)
+			});
+			var data = await resp.json();
+			if (!resp.ok || !data.ok) {
+				throw new Error(data.error || ("HTTP " + resp.status));
+			}
+
+			var lines = data.lines || [];
+			var vias = data.vias || [];
+			var defaultHoleMm = data.viaHole || 0.30;
+			log("Applying " + lines.length + " segments and " + vias.length + " vias to PCB canvas...");
+
+			var createdL = 0, createdV = 0;
+			for (var i = 0; i < lines.length; i++) {
+				var s = lines[i];
+				var okL = await eda.pcb_PrimitiveLine.create(
+					s[0], s[1],
+					+(s[2] * MM_TO_MIL).toFixed(3),
+					+(s[3] * MM_TO_MIL).toFixed(3),
+					+(s[4] * MM_TO_MIL).toFixed(3),
+					+(s[5] * MM_TO_MIL).toFixed(3),
+					+(s[6] * MM_TO_MIL).toFixed(3),
+					false
+				);
+				if (okL) createdL++;
+			}
+			for (var k = 0; k < vias.length; k++) {
+				var v = vias[k];
+				var odMm = v[3] || 0.50;
+				var holeMm = odMm <= 0.451 ? 0.20 : defaultHoleMm;
+				var okV = await eda.pcb_PrimitiveVia.create(
+					v[0],
+					+(v[1] * MM_TO_MIL).toFixed(3),
+					+(v[2] * MM_TO_MIL).toFixed(3),
+					+(holeMm * MM_TO_MIL).toFixed(2),
+					+(odMm * MM_TO_MIL).toFixed(3)
+				);
+				if (okV) createdV++;
+			}
+
+			var st = data.stats || {};
+			var summary = "Done in " + st.elapsed_s + "s: " + st.conns_routed + "/" + st.conns_total +
+				" connections (" + st.nets_routed + "/" + st.nets_total + " nets), +" +
+				createdL + " tracks, +" + createdV + " vias.";
+			log(summary);
+			var failKeys = Object.keys(data.fail || {});
+			if (failKeys.length > 0) {
+				log("Incomplete nets (" + failKeys.length + "): " + failKeys.join(", "));
+			}
+			toast(summary, "INFO");
+		} catch (e) {
+			log("ERROR: " + (e && e.message ? e.message : String(e)));
+			toast("EasyTrace-rs Error: " + (e && e.message ? e.message : String(e)), "ERROR");
+		} finally {
+			$("btnRoute").disabled = false;
+			$("btnClear").disabled = false;
+		}
+	}
+
+	$("healthBadge").addEventListener("click", checkHealth);
+	$("btnRoute").addEventListener("click", runAutoRoute);
+	$("btnClear").addEventListener("click", async function () {
+		$("btnClear").disabled = true;
+		try {
+			var r = await clearUnlockedCopper();
+			log("Cleared " + r.delLines + " unlocked segments and " + r.delVias + " unlocked vias.");
+			toast("Cleared " + r.delLines + " tracks, " + r.delVias + " vias", "INFO");
+		} finally {
+			$("btnClear").disabled = false;
+		}
+	});
+	$("btnClose").addEventListener("click", function () {
+		eda.sys_IFrame.closeIFrame("easytrace-autoroute-dialog");
+	});
+
+	checkHealth();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+{
+	"name": "easytrace-jlceda",
+	"uuid": "8f4e2c91a3b74d569e10c4a82b71f309",
+	"displayName": "EasyTrace-rs Autorouter / 高速自动布线",
+	"description": "One-click local Rust PCB autorouter for JLCEDA Pro (EasyEDA Pro). Preserves 100% of cutouts, NPTH slot bosses, and 1oz/2oz DRC clearances via easytrace serve.",
+	"version": "0.2.0",
+	"publisher": "eggfly",
+	"engines": {
+		"eda": "^2.3.0"
+	},
+	"license": "MIT",
+	"repository": {
+		"type": "github",
+		"url": "https://github.com/eggfly/EasyTrace-rs"
+	},
+	"categories": "PCB",
+	"keywords": [
+		"autorouter",
+		"router",
+		"自动布线",
+		"布线",
+		"rust",
+		"pathfinder",
+		"easytrace",
+		"PCB"
+	],
+	"images": {
+		"logo": "./images/logo.png"
+	},
+	"homepage": "https://github.com/eggfly/EasyTrace-rs",
+	"bugs": "https://github.com/eggfly/EasyTrace-rs/issues",
+	"activationEvents": {},
+	"entry": "./dist/index",
+	"dependentExtensions": {},
+	"headerMenus": {
+		"pcb": [
+			{
+				"id": "EasyTraceMenu",
+				"title": "EasyTrace-rs",
+				"menuItems": [
+					{
+						"id": "EasyTraceOpenPanel",
+						"title": "Auto Route Current PCB... / 自动布线面板...",
+						"registerFn": "openEasyTracePanel"
+					},
+					{
+						"id": "EasyTraceQuickRoute",
+						"title": "Quick Auto Route (1-Click) / 一键极速布线",
+						"registerFn": "quickAutoRoute"
+					}
+				]
+			}
+		]
+	}
+}
